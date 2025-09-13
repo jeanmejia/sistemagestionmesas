@@ -1,352 +1,229 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sistema de Gestión de Mesas</title>
-  <!-- Tailwind CSS CDN (para estilos rápidos) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* Scrollbar suave para listas largas */
-    ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#cfcfd4;border-radius:6px}::-webkit-scrollbar-track{background:#f4f4f5}
-  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
 </head>
-<body class="bg-slate-50 text-slate-800">
-  <div id="app" class="min-h-screen"></div>
+<body class="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+  <div id="app" class="min-h-screen flex flex-col"></div>
 
   <script>
-    /*********************** CONFIGURACIÓN BÁSICA ************************/
-    // Credenciales simples
+    /**************** CONFIG ****************/
     const ADMIN_USER = "admin";
-    const ADMIN_PASS = "admin"; // Puedes cambiarlo si deseas
-
-    // Claves de almacenamiento
+    const ADMIN_PASS = "admin";
     const LS_KEYS = {
-      session: "resto.session",
-      waiters: "resto.waiters",
-      tables: "resto.tables",
-      settings: "resto.settings",
+      session:"resto.session",
+      waiters:"resto.waiters",
+      tables:"resto.tables",
+      theme:"resto.theme"
     };
 
-    // Utilidades
-    const $ = (sel, el = document) => el.querySelector(sel);
-    const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
-    const uid = () => self.crypto?.randomUUID?.() || (Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+    const $=(s,e=document)=>e.querySelector(s);
+    const $$=(s,e=document)=>Array.from(e.querySelectorAll(s));
+    const uid=()=>crypto.randomUUID?.()||(Date.now().toString(36)+Math.random().toString(36).slice(2,8));
 
-    const store = {
-      get(k, def){
-        try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; }
-      },
-      set(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
-      remove(k){ localStorage.removeItem(k); }
-    };
+    const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
 
-    /************************** ESTADO APP **************************/
-    let state = {
-      session: store.get(LS_KEYS.session, { logged: false, user: null }),
-      waiters: store.get(LS_KEYS.waiters, [
-        { id: uid(), name: "Carlos" },
-        { id: uid(), name: "María" },
-        { id: uid(), name: "Luisa" },
-      ]),
-      tables: store.get(LS_KEYS.tables, Array.from({length: 12}, (_,i)=> ({
-        id: uid(), number: i+1, name: `Mesa ${i+1}`, waiterId: null, status: "Libre"
-      }))),
-      settings: store.get(LS_KEYS.settings, { theme: "light" })
+    /**************** STATE ****************/
+    let state={
+      session:store.get(LS_KEYS.session,{logged:false,user:null}),
+      waiters:store.get(LS_KEYS.waiters,[{id:uid(),name:"Carlos"},{id:uid(),name:"María"},{id:uid(),name:"Luisa"}]),
+      tables:store.get(LS_KEYS.tables,Array.from({length:12},(_,i)=>({id:uid(),number:i+1,name:`Mesa ${i+1}`,waiterId:null,status:"Libre"}))),
+      view:"mesas",
+      theme:store.get(LS_KEYS.theme,"light")
     };
 
     function saveState(){
-      store.set(LS_KEYS.session, state.session);
-      store.set(LS_KEYS.waiters, state.waiters);
-      store.set(LS_KEYS.tables, state.tables);
-      store.set(LS_KEYS.settings, state.settings);
+      store.set(LS_KEYS.session,state.session);
+      store.set(LS_KEYS.waiters,state.waiters);
+      store.set(LS_KEYS.tables,state.tables);
+      store.set(LS_KEYS.theme,state.theme);
     }
 
-    /************************** RENDER VIEWS **************************/
+    function applyTheme(){
+      const html=document.documentElement;
+      if(state.theme==="dark"){ html.classList.add("dark"); }
+      else { html.classList.remove("dark"); }
+    }
+
+    /**************** RENDER ****************/
     function render(){
-      const app = document.getElementById('app');
-      app.innerHTML = '';
-      if(!state.session.logged){
-        app.appendChild(LoginView());
-      } else {
-        app.appendChild(DashboardView());
-      }
+      applyTheme();
+      const app=$("#app");
+      app.innerHTML="";
+      if(!state.session.logged){ app.appendChild(LoginView()); }
+      else { app.appendChild(DashboardLayout()); }
     }
 
-    /************************** LOGIN VIEW **************************/
+    /**************** LOGIN ****************/
     function LoginView(){
-      const wrap = document.createElement('div');
-      wrap.className = "min-h-screen grid place-items-center p-6";
-
-      const card = document.createElement('div');
-      card.className = "w-full max-w-md bg-white rounded-2xl shadow p-8 border border-slate-200";
-      card.innerHTML = `
-        <div class="flex items-center justify-between mb-6">
-          <h1 class="text-2xl font-semibold">Ingreso</h1>
-          <span class="text-xs text-slate-500">Demo: admin / admin</span>
-        </div>
-        <form id="loginForm" class="space-y-4">
-          <div>
-            <label class="block text-sm mb-1">Usuario</label>
-            <input name="user" required class="w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="admin" />
-          </div>
-          <div>
-            <label class="block text-sm mb-1">Contraseña</label>
-            <input name="pass" type="password" required class="w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="admin" />
-          </div>
-          <button class="w-full rounded-xl bg-slate-900 text-white py-2.5 hover:bg-slate-800 transition">Entrar</button>
-        </form>
-      `;
-
-      card.querySelector('#loginForm').addEventListener('submit', (e)=>{
+      const wrap=document.createElement("div");
+      wrap.className="min-h-screen grid place-items-center p-6";
+      wrap.innerHTML=`
+        <div class="w-full max-w-md bg-white dark:bg-slate-800 dark:text-slate-100 shadow rounded-2xl p-8">
+          <h1 class="text-2xl font-semibold mb-6">Ingreso</h1>
+          <form id="loginForm" class="space-y-4">
+            <div>
+              <label class="block text-sm mb-1">Usuario</label>
+              <input name="user" required class="w-full rounded-xl border px-3 py-2 dark:bg-slate-700" placeholder="admin"/>
+            </div>
+            <div>
+              <label class="block text-sm mb-1">Contraseña</label>
+              <input name="pass" type="password" required class="w-full rounded-xl border px-3 py-2 dark:bg-slate-700" placeholder="admin"/>
+            </div>
+            <button class="w-full rounded-xl bg-slate-900 text-white py-2 dark:bg-slate-700 dark:hover:bg-slate-600">Entrar</button>
+          </form>
+        </div>`;
+      wrap.querySelector("#loginForm").onsubmit=e=>{
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const user = fd.get('user')?.toString().trim();
-        const pass = fd.get('pass')?.toString();
-        if(user === ADMIN_USER && pass === ADMIN_PASS){
-          state.session = { logged: true, user };
-          saveState();
-          render();
-        } else {
-          alert('Credenciales inválidas');
-        }
-      });
-
-      wrap.appendChild(card);
+        const fd=new FormData(e.target);
+        if(fd.get("user")===ADMIN_USER && fd.get("pass")===ADMIN_PASS){
+          state.session={logged:true,user:fd.get("user")};
+          saveState(); render();
+        }else alert("Credenciales inválidas");
+      };
       return wrap;
     }
 
-    /************************ DASHBOARD VIEW ************************/
-    function DashboardView(){
-      const wrap = document.createElement('div');
-      wrap.className = "min-h-screen p-4 md:p-8";
+    /**************** DASHBOARD ****************/
+    function DashboardLayout(){
+      const wrap=document.createElement("div");
+      wrap.className="min-h-screen flex flex-col";
 
-      // Header
-      const header = document.createElement('header');
-      header.className = "flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6";
-      header.innerHTML = `
-        <div>
-          <h2 class="text-2xl font-semibold">Panel principal</h2>
-          <p class="text-sm text-slate-500">Gestiona mozos y asignaciones a mesas.</p>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-sm text-slate-500">${state.session.user}</span>
-          <button id="logoutBtn" class="rounded-xl border px-3 py-2 hover:bg-slate-100">Salir</button>
-        </div>
+      // header
+      const header=document.createElement("header");
+      header.className="bg-slate-900 text-white h-16 flex items-center justify-between px-6 shadow";
+      header.innerHTML=`
+        <h1 class="text-xl font-semibold">Sistema de Gestión de Mesas</h1>
+        <div class="flex items-center gap-4">
+          <span class="text-sm text-slate-300">${state.session.user}</span>
+          <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg text-sm">Salir</button>
+        </div>`;
+      header.querySelector("#logoutBtn").onclick=()=>{ state.session={logged:false,user:null}; saveState(); render(); };
+
+      // sidebar + main
+      const container=document.createElement("div");
+      container.className="flex flex-1";
+
+      const sidebar=document.createElement("aside");
+      sidebar.className="w-64 bg-white dark:bg-slate-800 border-r shadow-sm p-4 flex flex-col";
+      sidebar.innerHTML=`
+        <nav class="space-y-2">
+          <button data-view="mozos" class="menuBtn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">🏷️ Mozos</button>
+          <button data-view="mesas" class="menuBtn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">🪑 Mesas</button>
+          <button id="themeToggle" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">🌓 Modo ${state.theme==="dark"?"Claro":"Oscuro"}</button>
+        </nav>
+        <div class="mt-auto text-xs text-slate-400 dark:text-slate-500 border-t pt-4">© 2025 Restaurante</div>
       `;
-      header.querySelector('#logoutBtn').addEventListener('click', ()=>{
-        state.session = { logged: false, user: null };
-        saveState();
-        render();
-      });
+      sidebar.querySelector("#themeToggle").onclick=()=>{
+        state.theme=(state.theme==="dark"?"light":"dark");
+        saveState(); render();
+      };
+      $$(".menuBtn",sidebar).forEach(btn=>btn.onclick=()=>{state.view=btn.dataset.view; render();});
 
-      // Main grid
-      const grid = document.createElement('div');
-      grid.className = "grid grid-cols-1 xl:grid-cols-3 gap-6";
+      const main=document.createElement("main");
+      main.className="flex-1 p-6 overflow-y-auto";
+      if(state.view==="mozos"){ main.appendChild(WaitersView()); }
+      if(state.view==="mesas"){ main.appendChild(TablesView()); }
 
-      // --- Columna Mozos ---
-      const waitersCol = document.createElement('section');
-      waitersCol.className = "xl:col-span-1 bg-white rounded-2xl shadow border p-6";
-      waitersCol.innerHTML = `
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold">Mozos</h3>
-          <button id="exportBtn" class="text-xs rounded-lg border px-2.5 py-1.5 hover:bg-slate-50">Exportar JSON</button>
-        </div>
-        <ul id="waitersList" class="space-y-2 max-h-72 overflow-auto pr-1"></ul>
-        <form id="addWaiterForm" class="mt-4 flex gap-2">
-          <input required name="name" class="flex-1 rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Nombre del mozo" />
-          <button class="rounded-xl bg-slate-900 text-white px-4 py-2 hover:bg-slate-800">Añadir</button>
-        </form>
-      `;
-
-      const waitersList = waitersCol.querySelector('#waitersList');
-      function drawWaiters(){
-        waitersList.innerHTML = '';
-        if(state.waiters.length === 0){
-          waitersList.innerHTML = `<li class="text-sm text-slate-500">Sin mozos. Añade uno arriba.</li>`;
-        }
-        for(const w of state.waiters){
-          const li = document.createElement('li');
-          li.className = "flex items-center justify-between gap-2 rounded-xl border p-2";
-          li.innerHTML = `
-            <div class="flex items-center gap-3">
-              <div class="h-8 w-8 rounded-full bg-slate-100 grid place-items-center text-xs">${w.name[0]?.toUpperCase()||"?"}</div>
-              <div>
-                <div class="font-medium">${w.name}</div>
-                <div class="text-xs text-slate-500">${countTablesByWaiter(w.id)} mesa(s)</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <button data-id="${w.id}" class="renameWaiter text-xs rounded-lg border px-2.5 py-1.5 hover:bg-slate-50">Renombrar</button>
-              <button data-id="${w.id}" class="delWaiter text-xs rounded-lg border px-2.5 py-1.5 hover:bg-rose-50">Eliminar</button>
-            </div>
-          `;
-          waitersList.appendChild(li);
-        }
-        $$('.renameWaiter', waitersList).forEach(b=> b.addEventListener('click', ()=>{
-          const id = b.getAttribute('data-id');
-          const w = state.waiters.find(x=>x.id===id);
-          const name = prompt('Nuevo nombre del mozo', w?.name||'');
-          if(name){ w.name = name.trim(); saveState(); drawWaiters(); drawTables(); }
-        }));
-        $$('.delWaiter', waitersList).forEach(b=> b.addEventListener('click', ()=>{
-          const id = b.getAttribute('data-id');
-          if(!confirm('¿Eliminar mozo? Las mesas quedarán sin asignar.')) return;
-          state.waiters = state.waiters.filter(x=>x.id!==id);
-          // Quitar asignaciones
-          state.tables = state.tables.map(t => t.waiterId === id ? ({...t, waiterId: null}) : t);
-          saveState();
-          drawWaiters();
-          drawTables();
-        }));
-      }
-
-      waitersCol.querySelector('#addWaiterForm').addEventListener('submit', (e)=>{
-        e.preventDefault();
-        const name = new FormData(e.currentTarget).get('name')?.toString().trim();
-        if(!name) return;
-        state.waiters.push({ id: uid(), name });
-        e.currentTarget.reset();
-        saveState();
-        drawWaiters();
-        drawTables();
-      });
-
-      waitersCol.querySelector('#exportBtn').addEventListener('click', ()=>{
-        const data = { waiters: state.waiters, tables: state.tables };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'resto_backup.json'; a.click();
-        URL.revokeObjectURL(url);
-      });
-
-      // --- Columna Mesas ---
-      const tablesCol = document.createElement('section');
-      tablesCol.className = "xl:col-span-2 bg-white rounded-2xl shadow border p-6";
-      tablesCol.innerHTML = `
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <h3 class="text-lg font-semibold">Mesas</h3>
-          <div class="flex items-center gap-2">
-            <input id="searchInput" class="rounded-xl border px-3 py-2" placeholder="Buscar mesa o mozo…" />
-            <button id="addTableBtn" class="rounded-xl border px-3 py-2 hover:bg-slate-50">Añadir mesa</button>
-            <button id="resetBtn" class="rounded-xl border px-3 py-2 hover:bg-rose-50">Reset demo</button>
-          </div>
-        </div>
-        <div id="tablesGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4"></div>
-      `;
-
-      const tablesGrid = tablesCol.querySelector('#tablesGrid');
-      function countTablesByWaiter(waiterId){
-        return state.tables.filter(t => t.waiterId === waiterId).length;
-      }
-
-      function waiterName(id){
-        const w = state.waiters.find(x=>x.id===id);
-        return w?.name || '— Sin asignar —';
-      }
-
-      function drawTables(){
-        const q = tablesCol.querySelector('#searchInput').value.toLowerCase().trim();
-        const list = state.tables
-          .slice()
-          .sort((a,b)=> a.number - b.number)
-          .filter(t => !q ||
-            t.name.toLowerCase().includes(q) ||
-            (waiterName(t.waiterId).toLowerCase().includes(q))
-          );
-        tablesGrid.innerHTML = '';
-        if(list.length===0){
-          tablesGrid.innerHTML = `<div class="text-sm text-slate-500">No hay resultados.</div>`;
-          return;
-        }
-        for(const t of list){
-          const card = document.createElement('div');
-          card.className = "rounded-2xl border p-4 hover:shadow transition";
-          card.innerHTML = `
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-sm text-slate-500">${t.name}</div>
-              <span class="inline-flex items-center text-xs px-2 py-1 rounded-full border ${t.status==='Libre' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}">${t.status}</span>
-            </div>
-            <div class="text-lg font-semibold mb-3">${waiterName(t.waiterId)}</div>
-            <div class="space-y-2">
-              <select data-id="${t.id}" class="assignSelect w-full rounded-xl border px-3 py-2">
-                <option value="">— Sin asignar —</option>
-                ${state.waiters.map(w=>`<option value="${w.id}" ${w.id===t.waiterId?'selected':''}>${w.name}</option>`).join('')}
-              </select>
-              <div class="flex items-center gap-2">
-                <button data-id="${t.id}" class="toggleStatus flex-1 rounded-xl border px-3 py-2 hover:bg-slate-50">Cambiar estado</button>
-                <button data-id="${t.id}" class="renameTable rounded-xl border px-3 py-2 hover:bg-slate-50">Renombrar</button>
-                <button data-id="${t.id}" class="delTable rounded-xl border px-3 py-2 hover:bg-rose-50">Eliminar</button>
-              </div>
-            </div>
-          `;
-          tablesGrid.appendChild(card);
-        }
-        $$('.assignSelect', tablesGrid).forEach(sel=> sel.addEventListener('change', ()=>{
-          const id = sel.getAttribute('data-id');
-          const t = state.tables.find(x=>x.id===id);
-          t.waiterId = sel.value || null;
-          saveState();
-          drawWaiters();
-          drawTables();
-        }));
-        $$('.toggleStatus', tablesGrid).forEach(btn=> btn.addEventListener('click', ()=>{
-          const id = btn.getAttribute('data-id');
-          const t = state.tables.find(x=>x.id===id);
-          t.status = (t.status === 'Libre') ? 'Ocupada' : 'Libre';
-          saveState();
-          drawTables();
-        }));
-        $$('.renameTable', tablesGrid).forEach(btn=> btn.addEventListener('click', ()=>{
-          const id = btn.getAttribute('data-id');
-          const t = state.tables.find(x=>x.id===id);
-          const name = prompt('Nuevo nombre de mesa', t.name);
-          if(name){ t.name = name.trim(); saveState(); drawTables(); }
-        }));
-        $$('.delTable', tablesGrid).forEach(btn=> btn.addEventListener('click', ()=>{
-          const id = btn.getAttribute('data-id');
-          if(!confirm('¿Eliminar mesa?')) return;
-          state.tables = state.tables.filter(x=>x.id!==id);
-          saveState();
-          drawTables();
-        }));
-      }
-
-      tablesCol.querySelector('#addTableBtn').addEventListener('click', ()=>{
-        const nextNum = (state.tables.reduce((m,t)=> Math.max(m, t.number), 0) || 0) + 1;
-        const name = prompt('Nombre de la mesa', `Mesa ${nextNum}`) || `Mesa ${nextNum}`;
-        state.tables.push({ id: uid(), number: nextNum, name: name.trim(), waiterId: null, status: 'Libre' });
-        saveState();
-        drawTables();
-      });
-
-      tablesCol.querySelector('#resetBtn').addEventListener('click', ()=>{
-        if(!confirm('Esto borrará datos y recargará el demo.')) return;
-        state.waiters = [ {id: uid(), name:'Carlos'}, {id: uid(), name:'María'}, {id: uid(), name:'Luisa'} ];
-        state.tables = Array.from({length: 12}, (_,i)=> ({ id: uid(), number: i+1, name: `Mesa ${i+1}`, waiterId: null, status: 'Libre' }));
-        saveState();
-        drawWaiters();
-        drawTables();
-      });
-
-      tablesCol.querySelector('#searchInput').addEventListener('input', drawTables);
-
-      // Montar todo
-      grid.appendChild(waitersCol);
-      grid.appendChild(tablesCol);
+      container.appendChild(sidebar);
+      container.appendChild(main);
 
       wrap.appendChild(header);
-      wrap.appendChild(grid);
-
-      // Dibujo inicial de listas
-      drawWaiters();
-      drawTables();
-
+      wrap.appendChild(container);
       return wrap;
     }
 
-    // Inicializar
+    /**************** MOZOS ****************/
+    function WaitersView(){
+      const sec=document.createElement("section");
+      sec.innerHTML=`
+        <h2 class="text-2xl font-semibold mb-4">Mozos</h2>
+        <ul id="waitersList" class="space-y-2 mb-4"></ul>
+        <form id="addWaiterForm" class="flex gap-2">
+          <input name="name" required placeholder="Nombre del mozo" class="flex-1 rounded-xl border px-3 py-2 dark:bg-slate-700"/>
+          <button class="bg-slate-900 text-white px-4 py-2 rounded-xl dark:bg-slate-700 dark:hover:bg-slate-600">Añadir</button>
+        </form>`;
+      const list=sec.querySelector("#waitersList");
+      function draw(){
+        list.innerHTML="";
+        if(!state.waiters.length) list.innerHTML=`<li class="text-sm text-slate-500">Sin mozos</li>`;
+        for(const w of state.waiters){
+          const li=document.createElement("li");
+          li.className="flex items-center justify-between border rounded-xl p-2 dark:border-slate-700";
+          li.innerHTML=`
+            <div><span class="font-medium">${w.name}</span> <span class="text-xs text-slate-500">(${state.tables.filter(t=>t.waiterId===w.id).length} mesas)</span></div>
+            <div class="flex gap-2">
+              <button data-id="${w.id}" class="rename text-xs border rounded px-2 py-1 dark:border-slate-600">Renombrar</button>
+              <button data-id="${w.id}" class="del text-xs border rounded px-2 py-1 text-red-600 dark:border-slate-600">Eliminar</button>
+            </div>`;
+          list.appendChild(li);
+        }
+        $$(".rename",list).forEach(b=>b.onclick=()=>{const w=state.waiters.find(x=>x.id===b.dataset.id);const n=prompt("Nuevo nombre",w.name);if(n){w.name=n.trim();saveState();draw();}});
+        $$(".del",list).forEach(b=>b.onclick=()=>{if(confirm("¿Eliminar mozo?")){state.waiters=state.waiters.filter(x=>x.id!==b.dataset.id);state.tables=state.tables.map(t=>t.waiterId===b.dataset.id?{...t,waiterId:null}:t);saveState();draw();}});
+      }
+      draw();
+      sec.querySelector("#addWaiterForm").onsubmit=e=>{
+        e.preventDefault();
+        const name=new FormData(e.target).get("name")?.toString().trim();
+        if(name){state.waiters.push({id:uid(),name});saveState();draw();e.target.reset();}
+      };
+      return sec;
+    }
+
+    /**************** MESAS ****************/
+    function TablesView(){
+      const sec=document.createElement("section");
+      sec.innerHTML=`
+        <h2 class="text-2xl font-semibold mb-4">Mesas</h2>
+        <div id="tablesGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <button id="addTableBtn" class="mt-4 bg-slate-900 text-white px-4 py-2 rounded-xl dark:bg-slate-700 dark:hover:bg-slate-600">Añadir mesa</button>`;
+      const grid=sec.querySelector("#tablesGrid");
+      function waiterName(id){return state.waiters.find(w=>w.id===id)?.name||"— Sin asignar —";}
+      function draw(){
+        grid.innerHTML="";
+        for(const t of state.tables.sort((a,b)=>a.number-b.number)){
+          const card=document.createElement("div");
+          card.className="bg-white dark:bg-slate-800 border rounded-2xl p-4 shadow dark:border-slate-700";
+          card.innerHTML=`
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-sm text-slate-500 dark:text-slate-400">${t.name}</div>
+              <span class="text-xs px-2 py-1 rounded-full border ${t.status==="Libre"?"bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30":"bg-amber-50 border-amber-200 dark:bg-amber-900/30"}">${t.status}</span>
+            </div>
+            <div class="text-lg font-semibold mb-3">${waiterName(t.waiterId)}</div>
+            <select data-id="${t.id}" class="assign w-full rounded-xl border px-3 py-2 mb-2 dark:bg-slate-700 dark:border-slate-600">
+              <option value="">— Sin asignar —</option>
+              ${state.waiters.map(w=>`<option value="${w.id}" ${w.id===t.waiterId?"selected":""}>${w.name}</option>`).join("")}
+            </select>
+            <div class="flex gap-2">
+              <button data-id="${t.id}" class="toggle flex-1 border rounded px-2 py-1 dark:border-slate-600">Estado</button>
+              <button data-id="${t.id}" class="rename border rounded px-2 py-1 dark:border-slate-600">Renombrar</button>
+              <button data-id="${t.id}" class="del border rounded px-2 py-1 text-red-600 dark:border-slate-600">Eliminar</button>
+            </div>`;
+          grid.appendChild(card);
+        }
+        $$(".assign",grid).forEach(sel=>sel.onchange=()=>{const t=state.tables.find(x=>x.id===sel.dataset.id);t.waiterId=sel.value||null;saveState();draw();});
+        $$(".toggle",grid).forEach(b=>b.onclick=()=>{const t=state.tables.find(x=>x.id===b.dataset.id);t.status=(t.status==="Libre")?"Ocupada":"Libre";saveState();draw();});
+        $$(".rename",grid).forEach(b=>b.onclick=()=>{const t=state.tables.find(x=>x.id===b.dataset.id);const n=prompt("Nuevo nombre",t.name);if(n){t.name=n.trim();saveState();draw();}});
+        $$(".del",grid).forEach(b=>b.onclick=()=>{if(confirm("¿Eliminar mesa?")){state.tables=state.tables.filter(x=>x.id!==b.dataset.id);saveState();draw();}});
+      }
+      draw();
+      sec.querySelector("#addTableBtn").onclick=()=>{
+        const next=(state.tables.reduce((m,t)=>Math.max(m,t.number),0)||0)+1;
+        const name=prompt("Nombre mesa",`Mesa ${next}`)||`Mesa ${next}`;
+        state.tables.push({id:uid(),number:next,name:name.trim(),waiterId:null,status:"Libre"});
+        saveState();draw();
+      };
+      return sec;
+    }
+
     render();
   </script>
 </body>
