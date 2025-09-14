@@ -226,5 +226,76 @@
 
     render();
   </script>
+<!-- -----------------------
+  Snippet: calcula total por mesa
+------------------------ -->
+<script>
+(function(){
+  function parsePedidoText(text){
+    let r = /(\d+)\s*[xX×]\s*([^\(]+?)\s*\( *S\/?\s*([\d.,]+)/i;
+    let m = text.match(r);
+    if(m) return {cantidad: parseInt(m[1],10), nombre: m[2].trim(), precio: parseFloat(m[3].replace(',','.'))};
+    r = /([^\-]+?)\s*-\s*S\/?\s*([\d.,]+)\s*-\s*(\d+)/i;
+    m = text.match(r);
+    if(m) return {cantidad: parseInt(m[3],10), nombre: m[1].trim(), precio: parseFloat(m[2].replace(',','.'))};
+    let nums = text.match(/[\d,.]+/g);
+    if(nums && nums.length>=2){
+      let cantidad = parseInt(nums[0].replace(',',''),10);
+      let precio = parseFloat(nums[nums.length-1].replace(',','.'));
+      if(!isNaN(cantidad) && !isNaN(precio)) return {cantidad, nombre: text.replace(nums[0],'').replace(nums[nums.length-1], '').trim(), precio};
+    }
+    return null;
+  }
+
+  function calcForList(ul){
+    const lis = ul.querySelectorAll('li');
+    let total = 0;
+    lis.forEach(li=>{
+      let cantidad = li.dataset.cantidad ? parseFloat(li.dataset.cantidad) : null;
+      let precio = li.dataset.precio ? parseFloat(li.dataset.precio) : null;
+      if(cantidad!=null && precio!=null){
+        total += cantidad * precio;
+      } else {
+        const parsed = parsePedidoText(li.textContent);
+        if(parsed) total += parsed.cantidad * parsed.precio;
+      }
+    });
+    return total;
+  }
+
+  function addTotals(){
+    const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'));
+    headings.forEach(h=>{
+      if(/mesa/i.test(h.textContent)){
+        let el = h.nextElementSibling;
+        let ul = null;
+        for(let i=0;i<6 && el;i++, el = el.nextElementSibling){
+          if(!el) break;
+          if(el.tagName && (el.tagName.toLowerCase()==='ul' || el.tagName.toLowerCase()==='ol')){ ul = el; break; }
+          const found = el.querySelector && (el.querySelector('ul')||el.querySelector('ol'));
+          if(found){ ul = found; break; }
+        }
+        if(!ul && h.parentElement) ul = h.parentElement.querySelector('ul,ol');
+        if(ul){
+          const total = calcForList(ul);
+          let p = h.parentElement && h.parentElement.querySelector('.total-mesa');
+          if(!p){
+            p = document.createElement('p');
+            p.className = 'total-mesa';
+            p.style.fontWeight='700';
+            p.style.marginTop = '6px';
+            h.parentElement.appendChild(p);
+          }
+          p.textContent = 'Total: S/ ' + (Math.round(total*100)/100).toFixed(2);
+        }
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', addTotals);
+  window.recalcularTotales = addTotals;
+})();
+</script>
+<!-- /Snippet -->
 </body>
 </html>
