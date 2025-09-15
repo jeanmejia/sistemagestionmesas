@@ -40,6 +40,19 @@
       theme:store.get(LS_KEYS.theme,"light")
     };
 
+    const menus = {
+      criollo: [
+        { nombre: "Lomo Saltado", precio: "S/ 25.00" },
+        { nombre: "Ají de Gallina", precio: "S/ 20.00" },
+        { nombre: "Arroz con Pollo", precio: "S/ 18.00" }
+      ],
+      marino: [
+        { nombre: "Ceviche Mixto", precio: "S/ 28.00" },
+        { nombre: "Arroz con Mariscos", precio: "S/ 30.00" },
+        { nombre: "Chicharrón de Pescado", precio: "S/ 22.00" }
+      ]
+    };
+
     function saveState(){
       store.set(LS_KEYS.session,state.session);
       store.set(LS_KEYS.waiters,state.waiters);
@@ -118,6 +131,11 @@
         <nav class="space-y-2">
           <button data-view="mozos" class="menuBtn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">🏷️ Mozos</button>
           <button data-view="mesas" class="menuBtn w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">🪑 Mesas</button>
+          <div>
+            <p class="px-3 py-2 font-medium">📖 Menú</p>
+            <button data-view="criollo" class="menuBtn w-full text-left px-6 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">Menú Criollo</button>
+            <button data-view="marino" class="menuBtn w-full text-left px-6 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">Menú Marino</button>
+          </div>
           <button id="themeToggle" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">🌓 Modo ${state.theme==="dark"?"Claro":"Oscuro"}</button>
         </nav>
         <div class="mt-auto text-xs text-slate-400 dark:text-slate-500 border-t pt-4">© 2025 Restaurante</div>
@@ -132,6 +150,8 @@
       main.className="flex-1 p-6 overflow-y-auto";
       if(state.view==="mozos"){ main.appendChild(WaitersView()); }
       if(state.view==="mesas"){ main.appendChild(TablesView()); }
+      if(state.view==="criollo"){ main.appendChild(MenuView("criollo")); }
+      if(state.view==="marino"){ main.appendChild(MenuView("marino")); }
 
       container.appendChild(sidebar);
       container.appendChild(main);
@@ -224,133 +244,20 @@
       return sec;
     }
 
-/***********************Menu y Precios ***************/
-function MenuView(){
-  const sec=document.createElement("section");
-  sec.innerHTML=`
-    <h2 class="text-2xl font-semibold mb-4">Menú y Precios</h2>
-    <div class="flex gap-4">
-      <button id="btnCriollo" class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">Menú Criollo</button>
-      <button id="btnMarino" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Menú Marino</button>
-    </div>
-    <div id="menuContent" class="mt-6"></div>
-  `;
-
-  const content=sec.querySelector("#menuContent");
-
-  // --- Sub-vista Menú Criollo ---
-  function MenuCriollo(){
-    const div=document.createElement("div");
-    div.innerHTML=`
-      <h3 class="text-xl font-semibold mb-3">Menú Criollo</h3>
-      <ul class="space-y-2">
-        <li class="border p-2 rounded">Lomo Saltado - S/ 18.00</li>
-        <li class="border p-2 rounded">Ají de Gallina - S/ 15.00</li>
-        <li class="border p-2 rounded">Seco de Res - S/ 20.00</li>
-      </ul>
-    `;
-    return div;
-  }
-
-  // --- Sub-vista Menú Marino ---
-  function MenuMarino(){
-    const div=document.createElement("div");
-    div.innerHTML=`
-      <h3 class="text-xl font-semibold mb-3">Menú Marino</h3>
-      <ul class="space-y-2">
-        <li class="border p-2 rounded">Ceviche - S/ 22.00</li>
-        <li class="border p-2 rounded">Arroz con Mariscos - S/ 25.00</li>
-        <li class="border p-2 rounded">Chicharrón de Pescado - S/ 20.00</li>
-      </ul>
-    `;
-    return div;
-  }
-
-  // --- Eventos de botones ---
-  sec.querySelector("#btnCriollo").onclick=()=>{
-    content.innerHTML="";
-    content.appendChild(MenuCriollo());
-  };
-  sec.querySelector("#btnMarino").onclick=()=>{
-    content.innerHTML="";
-    content.appendChild(MenuMarino());
-  };
-
-  return sec;
-}
+    /**************** MENÚ ****************/
+    function MenuView(tipo){
+      const sec=document.createElement("section");
+      sec.innerHTML=`<h2 class="text-2xl font-semibold mb-4">Menú ${tipo.charAt(0).toUpperCase()+tipo.slice(1)}</h2>`;
+      menus[tipo].forEach(plato=>{
+        const row=document.createElement("div");
+        row.className="flex justify-between border-b py-2";
+        row.innerHTML=`<span>${plato.nombre}</span><span class="font-medium">${plato.precio}</span>`;
+        sec.appendChild(row);
+      });
+      return sec;
+    }
 
     render();
   </script>
-<!-- -----------------------
-  Snippet: calcula total por mesa
------------------------- -->
-<script>
-(function(){
-  function parsePedidoText(text){
-    let r = /(\d+)\s*[xX×]\s*([^\(]+?)\s*\( *S\/?\s*([\d.,]+)/i;
-    let m = text.match(r);
-    if(m) return {cantidad: parseInt(m[1],10), nombre: m[2].trim(), precio: parseFloat(m[3].replace(',','.'))};
-    r = /([^\-]+?)\s*-\s*S\/?\s*([\d.,]+)\s*-\s*(\d+)/i;
-    m = text.match(r);
-    if(m) return {cantidad: parseInt(m[3],10), nombre: m[1].trim(), precio: parseFloat(m[2].replace(',','.'))};
-    let nums = text.match(/[\d,.]+/g);
-    if(nums && nums.length>=2){
-      let cantidad = parseInt(nums[0].replace(',',''),10);
-      let precio = parseFloat(nums[nums.length-1].replace(',','.'));
-      if(!isNaN(cantidad) && !isNaN(precio)) return {cantidad, nombre: text.replace(nums[0],'').replace(nums[nums.length-1], '').trim(), precio};
-    }
-    return null;
-  }
-
-  function calcForList(ul){
-    const lis = ul.querySelectorAll('li');
-    let total = 0;
-    lis.forEach(li=>{
-      let cantidad = li.dataset.cantidad ? parseFloat(li.dataset.cantidad) : null;
-      let precio = li.dataset.precio ? parseFloat(li.dataset.precio) : null;
-      if(cantidad!=null && precio!=null){
-        total += cantidad * precio;
-      } else {
-        const parsed = parsePedidoText(li.textContent);
-        if(parsed) total += parsed.cantidad * parsed.precio;
-      }
-    });
-    return total;
-  }
-
-  function addTotals(){
-    const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'));
-    headings.forEach(h=>{
-      if(/mesa/i.test(h.textContent)){
-        let el = h.nextElementSibling;
-        let ul = null;
-        for(let i=0;i<6 && el;i++, el = el.nextElementSibling){
-          if(!el) break;
-          if(el.tagName && (el.tagName.toLowerCase()==='ul' || el.tagName.toLowerCase()==='ol')){ ul = el; break; }
-          const found = el.querySelector && (el.querySelector('ul')||el.querySelector('ol'));
-          if(found){ ul = found; break; }
-        }
-        if(!ul && h.parentElement) ul = h.parentElement.querySelector('ul,ol');
-        if(ul){
-          const total = calcForList(ul);
-          let p = h.parentElement && h.parentElement.querySelector('.total-mesa');
-          if(!p){
-            p = document.createElement('p');
-            p.className = 'total-mesa';
-            p.style.fontWeight='700';
-            p.style.marginTop = '6px';
-            h.parentElement.appendChild(p);
-          }
-          p.textContent = 'Total: S/ ' + (Math.round(total*100)/100).toFixed(2);
-        }
-      }
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', addTotals);
-  window.recalcularTotales = addTotals;
-})();
-</script>
-<!-- /Snippet -->
 </body>
 </html>
