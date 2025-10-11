@@ -6,13 +6,41 @@
   <title>Sistema de Gestión de Mesas</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class'
-    }
+    tailwind.config = { darkMode: 'class' }
   </script>
+  <style>
+    /* Animaciones suaves */
+    .fade-in { opacity: 0; animation: fadeIn 0.3s forwards; }
+    .fade-out { opacity: 1; animation: fadeOut 0.3s forwards; }
+    @keyframes fadeIn { to { opacity: 1; } }
+    @keyframes fadeOut { to { opacity: 0; } }
+
+    /* Toasts */
+    #toast-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 100;
+    }
+    .toast {
+      opacity: 0;
+      transform: translateX(100%);
+      animation: slideIn 0.4s forwards;
+    }
+    @keyframes slideIn {
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideOut {
+      to { opacity: 0; transform: translateX(100%); }
+    }
+  </style>
 </head>
 <body class="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200">
   <div id="app" class="min-h-screen flex flex-col"></div>
+  <div id="toast-container"></div>
 
   <script>
     /**************** CONFIG ****************/
@@ -40,6 +68,7 @@
       theme:store.get(LS_KEYS.theme,"light")
     };
 
+    /**************** HELPERS ****************/
     function saveState(){
       store.set(LS_KEYS.session,state.session);
       store.set(LS_KEYS.waiters,state.waiters);
@@ -53,6 +82,27 @@
       else { html.classList.remove("dark"); }
     }
 
+    /**************** TOAST NOTIFICATIONS ****************/
+    function showToast(message, type="info"){
+      const colors = {
+        info: "bg-blue-600",
+        success: "bg-green-600",
+        warning: "bg-yellow-500 text-black",
+        error: "bg-red-600"
+      };
+      const container = $("#toast-container");
+      const toast = document.createElement("div");
+      toast.className = `toast text-white px-4 py-2 rounded-lg shadow-lg ${colors[type]||colors.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      // remove after 3s with animation
+      setTimeout(()=>{
+        toast.style.animation = "slideOut 0.4s forwards";
+        setTimeout(()=>toast.remove(),400);
+      },3000);
+    }
+
     /**************** RENDER ****************/
     function render(){
       applyTheme();
@@ -60,6 +110,27 @@
       app.innerHTML="";
       if(!state.session.logged){ app.appendChild(LoginView()); }
       else { app.appendChild(DashboardLayout()); }
+    }
+
+    /**************** ANIMACIÓN GLOBAL ****************/
+    function showTransitionAnimation(message, callback){
+      const overlay=document.createElement("div");
+      overlay.className="fixed inset-0 bg-slate-900 bg-opacity-80 flex flex-col items-center justify-center text-white z-50 fade-in";
+      overlay.innerHTML=`
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+          <p class="mt-4 text-lg font-semibold">${message}</p>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      setTimeout(()=>{
+        overlay.classList.remove("fade-in");
+        overlay.classList.add("fade-out");
+        setTimeout(()=>{
+          overlay.remove();
+          callback();
+        },300);
+      },700);
     }
 
     /**************** LOGIN ****************/
@@ -86,7 +157,8 @@
         const fd=new FormData(e.target);
         if(fd.get("user")===ADMIN_USER && fd.get("pass")===ADMIN_PASS){
           state.session={logged:true,user:fd.get("user")};
-          saveState(); render();
+          saveState();
+          showTransitionAnimation("Iniciando sesión...", ()=>render());
         }else alert("Credenciales inválidas");
       };
       return wrap;
@@ -97,7 +169,6 @@
       const wrap=document.createElement("div");
       wrap.className="min-h-screen flex flex-col";
 
-      // header
       const header=document.createElement("header");
       header.className="bg-slate-900 text-white h-16 flex items-center justify-between px-6 shadow";
       header.innerHTML=`
@@ -106,9 +177,14 @@
           <span class="text-sm text-slate-300">${state.session.user}</span>
           <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg text-sm">Salir</button>
         </div>`;
-      header.querySelector("#logoutBtn").onclick=()=>{ state.session={logged:false,user:null}; saveState(); render(); };
+      header.querySelector("#logoutBtn").onclick=()=>{
+        showTransitionAnimation("Cerrando sesión...", ()=>{
+          state.session={logged:false,user:null};
+          saveState();
+          render();
+        });
+      };
 
-      // sidebar + main
       const container=document.createElement("div");
       container.className="flex flex-1";
 
@@ -167,13 +243,13 @@
           list.appendChild(li);
         }
         $$(".rename",list).forEach(b=>b.onclick=()=>{const w=state.waiters.find(x=>x.id===b.dataset.id);const n=prompt("Nuevo nombre",w.name);if(n){w.name=n.trim();saveState();draw();}});
-        $$(".del",list).forEach(b=>b.onclick=()=>{if(confirm("¿Eliminar mozo?")){state.waiters=state.waiters.filter(x=>x.id!==b.dataset.id);state.tables=state.tables.map(t=>t.waiterId===b.dataset.id?{...t,waiterId:null}:t);saveState();draw();}});
+        $$(".del",list).forEach(b=>b.onclick=()=>{if(confirm("¿Eliminar mozo?")){state.waiters=state.waiters.filter(x=>x.id!==b.dataset.id);state.tables=state.tables.map(t=>t.waiterId===b.dataset.id?{...t,waiterId:null}:t);saveState();draw();showToast("Mozo eliminado","warning");}});
       }
       draw();
       sec.querySelector("#addWaiterForm").onsubmit=e=>{
         e.preventDefault();
         const name=new FormData(e.target).get("name")?.toString().trim();
-        if(name){state.waiters.push({id:uid(),name});saveState();draw();e.target.reset();}
+        if(name){state.waiters.push({id:uid(),name});saveState();draw();e.target.reset();showToast("Mozo añadido correctamente","success");}
       };
       return sec;
     }
@@ -209,93 +285,49 @@
             </div>`;
           grid.appendChild(card);
         }
-        $$(".assign",grid).forEach(sel=>sel.onchange=()=>{const t=state.tables.find(x=>x.id===sel.dataset.id);t.waiterId=sel.value||null;saveState();draw();});
-        $$(".toggle",grid).forEach(b=>b.onclick=()=>{const t=state.tables.find(x=>x.id===b.dataset.id);t.status=(t.status==="Libre")?"Ocupada":"Libre";saveState();draw();});
-        $$(".rename",grid).forEach(b=>b.onclick=()=>{const t=state.tables.find(x=>x.id===b.dataset.id);const n=prompt("Nuevo nombre",t.name);if(n){t.name=n.trim();saveState();draw();}});
-        $$(".del",grid).forEach(b=>b.onclick=()=>{if(confirm("¿Eliminar mesa?")){state.tables=state.tables.filter(x=>x.id!==b.dataset.id);saveState();draw();}});
+
+        $$(".assign",grid).forEach(sel=>sel.onchange=()=>{
+          const t=state.tables.find(x=>x.id===sel.dataset.id);
+          const prev=waiterName(t.waiterId);
+          t.waiterId=sel.value||null;
+          saveState();draw();
+          showToast(`Mesa reasignada a ${waiterName(t.waiterId)} (antes: ${prev})`,"info");
+        });
+
+        $$(".toggle",grid).forEach(b=>b.onclick=()=>{
+          const t=state.tables.find(x=>x.id===b.dataset.id);
+          t.status=(t.status==="Libre")?"Ocupada":"Libre";
+          saveState();draw();
+          showToast(`La mesa ahora está ${t.status}`,"success");
+        });
+
+        $$(".rename",grid).forEach(b=>b.onclick=()=>{
+          const t=state.tables.find(x=>x.id===b.dataset.id);
+          const n=prompt("Nuevo nombre",t.name);
+          if(n){t.name=n.trim();saveState();draw();showToast("Mesa renombrada","info");}
+        });
+
+        $$(".del",grid).forEach(b=>b.onclick=()=>{
+          if(confirm("¿Eliminar mesa?")){
+            state.tables=state.tables.filter(x=>x.id!==b.dataset.id);
+            saveState();draw();
+            showToast("Mesa eliminada","warning");
+          }
+        });
       }
+
       draw();
       sec.querySelector("#addTableBtn").onclick=()=>{
         const next=(state.tables.reduce((m,t)=>Math.max(m,t.number),0)||0)+1;
         const name=prompt("Nombre mesa",`Mesa ${next}`)||`Mesa ${next}`;
         state.tables.push({id:uid(),number:next,name:name.trim(),waiterId:null,status:"Libre"});
         saveState();draw();
+        showToast("Mesa añadida correctamente","success");
       };
       return sec;
     }
 
     render();
   </script>
-<!-- -----------------------
-  Snippet: calcula total por mesa
------------------------- -->
-<script>
-(function(){
-  function parsePedidoText(text){
-    let r = /(\d+)\s*[xX×]\s*([^\(]+?)\s*\( *S\/?\s*([\d.,]+)/i;
-    let m = text.match(r);
-    if(m) return {cantidad: parseInt(m[1],10), nombre: m[2].trim(), precio: parseFloat(m[3].replace(',','.'))};
-    r = /([^\-]+?)\s*-\s*S\/?\s*([\d.,]+)\s*-\s*(\d+)/i;
-    m = text.match(r);
-    if(m) return {cantidad: parseInt(m[3],10), nombre: m[1].trim(), precio: parseFloat(m[2].replace(',','.'))};
-    let nums = text.match(/[\d,.]+/g);
-    if(nums && nums.length>=2){
-      let cantidad = parseInt(nums[0].replace(',',''),10);
-      let precio = parseFloat(nums[nums.length-1].replace(',','.'));
-      if(!isNaN(cantidad) && !isNaN(precio)) return {cantidad, nombre: text.replace(nums[0],'').replace(nums[nums.length-1], '').trim(), precio};
-    }
-    return null;
-  }
-
-  function calcForList(ul){
-    const lis = ul.querySelectorAll('li');
-    let total = 0;
-    lis.forEach(li=>{
-      let cantidad = li.dataset.cantidad ? parseFloat(li.dataset.cantidad) : null;
-      let precio = li.dataset.precio ? parseFloat(li.dataset.precio) : null;
-      if(cantidad!=null && precio!=null){
-        total += cantidad * precio;
-      } else {
-        const parsed = parsePedidoText(li.textContent);
-        if(parsed) total += parsed.cantidad * parsed.precio;
-      }
-    });
-    return total;
-  }
-
-  function addTotals(){
-    const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'));
-    headings.forEach(h=>{
-      if(/mesa/i.test(h.textContent)){
-        let el = h.nextElementSibling;
-        let ul = null;
-        for(let i=0;i<6 && el;i++, el = el.nextElementSibling){
-          if(!el) break;
-          if(el.tagName && (el.tagName.toLowerCase()==='ul' || el.tagName.toLowerCase()==='ol')){ ul = el; break; }
-          const found = el.querySelector && (el.querySelector('ul')||el.querySelector('ol'));
-          if(found){ ul = found; break; }
-        }
-        if(!ul && h.parentElement) ul = h.parentElement.querySelector('ul,ol');
-        if(ul){
-          const total = calcForList(ul);
-          let p = h.parentElement && h.parentElement.querySelector('.total-mesa');
-          if(!p){
-            p = document.createElement('p');
-            p.className = 'total-mesa';
-            p.style.fontWeight='700';
-            p.style.marginTop = '6px';
-            h.parentElement.appendChild(p);
-          }
-          p.textContent = 'Total: S/ ' + (Math.round(total*100)/100).toFixed(2);
-        }
-      }
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', addTotals);
-  window.recalcularTotales = addTotals;
-})();
-</script>
-<!-- /Snippet -->
 </body>
 </html>
